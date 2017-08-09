@@ -23,30 +23,31 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 // OTHER DEALINGS IN THE SOFTWARE.
 
-#import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
+NS_ASSUME_NONNULL_BEGIN
 
 @interface COSLayout : NSObject
 
-+ (instancetype)layoutOfView:(UIView *)view;
+- (instancetype)initWithView:(UIView *)view;
++ (instancetype)layoutWithView:(UIView *)view;
 
 - (void)addRule:(NSString *)format, ...;
 - (void)addRule:(NSString *)format args:(va_list)args;
-- (void)addRule:(NSString *)format arguments:(NSArray *)arguments;
+- (void)addRule:(NSString *)format arguments:(nullable NSArray *)arguments;
 
 @end
-
 
 @interface UIView (COSLayout)
 
-@property (nonatomic, strong, readonly) COSLayout *coslayout;
+@property (nonatomic, strong, readonly) COSLayout *cosLayout;
 
 @end
-
 
 @protocol COSCGFloatProtocol
 
-- (CGFloat)cos_CGFloatValue;
+- (CGFloat)cosCGFloatValue;
 
 @end
+
+NS_ASSUME_NONNULL_END

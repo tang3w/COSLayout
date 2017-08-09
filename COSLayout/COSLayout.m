@@ -845,7 +845,7 @@ void cos_initialize_driver_if_needed(UIView *view) {
     self = [super init];
 
     if (self) {
-        _array = [array mutableCopy];
+        _array = array ? [array mutableCopy] : [NSMutableArray array];
     }
 
     return self;
@@ -889,7 +889,7 @@ void cos_initialize_driver_if_needed(UIView *view) {
     });
 }
 
-+ (instancetype)layoutOfView:(UIView *)view {
++ (instancetype)layoutWithView:(UIView *)view {
     if (![view isKindOfClass:[UIView class]]) return nil;
 
     COSLayout *layout = objc_getAssociatedObject(view, COSLayoutKey);
@@ -1053,7 +1053,7 @@ void cos_initialize_driver_if_needed(UIView *view) {
             id<COSCGFloatProtocol> value = [args objectValue];
 
             coord = [COSCoord coordWithBlock:^CGFloat(COSLayoutRule *rule) {
-                return [value cos_CGFloatValue];
+                return [value cosCGFloatValue];
             }];
         }
             break;
@@ -1110,7 +1110,7 @@ void cos_initialize_driver_if_needed(UIView *view) {
             id<COSCGFloatProtocol> object = [args objectValue];
 
             coord = [COSCoord coordWithBlock:^CGFloat(COSLayoutRule *rule) {
-                CGFloat percentage = [object cos_CGFloatValue];
+                CGFloat percentage = [object cosCGFloatValue];
                 COSCoord *coord = [COSCoord coordWithPercentage:percentage dir:dir];
 
                 return coord.block(rule);
@@ -1669,8 +1669,8 @@ do {                                                     \
 
 @implementation UIView (COSLayout)
 
-- (COSLayout *)coslayout {
-    return [COSLayout layoutOfView:self];
+- (COSLayout *)cosLayout {
+    return [COSLayout layoutWithView:self];
 }
 
 @end
