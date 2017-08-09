@@ -1300,7 +1300,10 @@ case YY_STATE_EOF(INITIAL):
 
 				else
 					{
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunreachable-code"
 					if ( ! yyg->yy_did_buffer_switch_on_eof )
+#pragma clang diagnostic pop
 						YY_NEW_FILE;
 					}
 				break;
