@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name     = 'COSLayout'
-  s.version  = '1.0.0'
+  s.version  = '2.0.0'
   s.platform = :ios, '5.0'
   s.license  = 'MIT'
   s.summary  = 'Make layout painless.'
