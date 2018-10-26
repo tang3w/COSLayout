@@ -32,7 +32,7 @@
 
 @class COSLayoutRule;
 
-typedef CGFloat(^COSFloatBlock)(UIView *);
+typedef CGFloat(^COSFloatBlock)(COSView *);
 typedef CGFloat(^COSCoordBlock)(COSLayoutRule *);
 
 typedef NS_ENUM(NSInteger, COSLayoutDir) {
@@ -77,19 +77,19 @@ static NSString *COSLayoutSyntaxExceptionDesc = @"Layout rule has a syntax error
 
 @interface COSCoords : NSObject
 
-+ (instancetype)coordsOfView:(UIView *)view;
++ (instancetype)coordsOfView:(COSView *)view;
 
 @end
 
 
 @interface COSLayoutRule : NSObject
 
-+ (instancetype)layoutRuleWithView:(UIView *)view
++ (instancetype)layoutRuleWithView:(COSView *)view
     name:(NSString *)name
     coord:(COSCoord *)coord
     dir:(COSLayoutDir)dir;
 
-@property (nonatomic, weak) UIView *view;
+@property (nonatomic, weak) COSView *view;
 @property (nonatomic, copy) NSString *name;
 @property (nonatomic, strong) COSCoord *coord;
 @property (nonatomic, assign) COSLayoutDir dir;
@@ -112,9 +112,37 @@ static NSString *COSLayoutSyntaxExceptionDesc = @"Layout rule has a syntax error
 @end
 
 
+@interface COSLayoutSolver : NSObject
+
++ (instancetype)layoutSolverOfView:(COSView *)view;
+
+@property (nonatomic, weak) COSView *view;
+
+- (instancetype)initWithView:(COSView *)view;
+
+- (void)solve;
+
+@end
+
+
+@interface COSLayoutDriver : NSObject
+
+@property (nonatomic, weak) COSView *view;
+
+@property (nonatomic, strong) COSLayoutSolver *solver;
+
+- (instancetype)initWithView:(COSView *)view;
+
+- (void)beginSolves;
+
+- (void)endSolves;
+
+@end
+
+
 @interface COSLayout ()
 
-@property (nonatomic, weak) UIView *view;
+@property (nonatomic, weak) COSView *view;
 
 @property (nonatomic, strong) COSLayoutRuleHub *ruleHub;
 @property (nonatomic, strong) NSMutableDictionary *ruleMap;
@@ -150,9 +178,9 @@ static NSString *COSLayoutSyntaxExceptionDesc = @"Layout rule has a syntax error
 
 @property (nonatomic, assign) CGRect frame;
 
-- (instancetype)initWithView:(UIView *)view;
+- (instancetype)initWithView:(COSView *)view;
 
-- (void)updateLayoutDriver;
+- (COSLayoutDriver *)updateLayoutDriver;
 
 - (NSSet *)dependencies;
 
@@ -163,7 +191,7 @@ static NSString *COSLayoutSyntaxExceptionDesc = @"Layout rule has a syntax error
 
 @interface COSLayoutRulesSolver : NSObject
 
-@property (nonatomic, weak) UIView *view;
+@property (nonatomic, weak) COSView *view;
 
 - (CGRect)solveTt:(NSArray *)rules;
 - (CGRect)solveTtCt:(NSArray *)rules;
@@ -192,36 +220,9 @@ static NSString *COSLayoutSyntaxExceptionDesc = @"Layout rule has a syntax error
 @end
 
 
-@interface COSLayoutSolver : NSObject
-
-+ (instancetype)layoutSolverOfView:(UIView *)view;
-
-@property (nonatomic, weak) UIView *view;
-
-- (instancetype)initWithView:(UIView *)view;
-
-- (void)solve;
-
-@end
-
-
-@interface COSLayoutDriver : NSObject
-
-@property (nonatomic, weak) UIView *view;
-
-@property (nonatomic, strong) COSLayoutSolver *solver;
-
-- (instancetype)initWithView:(UIView *)view;
-
-- (void)beginSolves;
-- (void)endSolves;
-
-@end
-
-
 @implementation COSLayoutRule
 
-+ (instancetype)layoutRuleWithView:(UIView *)view
++ (instancetype)layoutRuleWithView:(COSView *)view
     name:(NSString *)name
     coord:(COSCoord *)coord
     dir:(COSLayoutDir)dir
@@ -292,7 +293,7 @@ static NSString *COSLayoutSyntaxExceptionDesc = @"Layout rule has a syntax error
 do {                                           \
     COSLayoutRule *rule = rules[0];            \
     CGFloat var = [[rule coord] block](rule);  \
-    UIView *view = _view;                      \
+    COSView *view = _view;                     \
     CGRect frame = COSLAYOUT_FRAME(view);      \
     frame.origin.x = (left);                   \
     return frame;                              \
@@ -302,7 +303,7 @@ do {                                           \
 do {                                           \
     COSLayoutRule *rule = rules[0];            \
     CGFloat var = [[rule coord] block](rule);  \
-    UIView *view = _view;                      \
+    COSView *view = _view;                     \
     CGRect frame = COSLAYOUT_FRAME(view);      \
     frame.origin.y = (top);                    \
     return frame;                              \
@@ -314,7 +315,7 @@ do {                                                        \
     COSLayoutRule *rule1 = rules[1];                        \
     CGFloat var1 = [[rule0 coord] block](rule0);            \
     CGFloat var2 = [[rule1 coord] block](rule1);            \
-    UIView *view = _view;                                   \
+    COSView *view = _view;                                  \
     CGRect frame = COSLAYOUT_FRAME(view);                   \
     frame.size.width = [self calcWidth:(width_)];           \
     frame.origin.x = (left);                                \
@@ -327,7 +328,7 @@ do {                                                        \
     COSLayoutRule *rule1 = rules[1];                        \
     CGFloat var1 = [[rule0 coord] block](rule0);            \
     CGFloat var2 = [[rule1 coord] block](rule1);            \
-    UIView *view = _view;                                   \
+    COSView *view = _view;                                  \
     CGRect frame = COSLAYOUT_FRAME(view);                   \
     frame.size.height = [self calcHeight:(height_)];        \
     frame.origin.y = (top);                                 \
@@ -468,17 +469,17 @@ typedef enum COSLayoutVisitStat COSLayoutVisitStat;
 static const void *COSVisitKey = &COSVisitKey;
 
 NS_INLINE
-void COSMakeViewUnvisited(UIView *view) {
+void COSMakeViewUnvisited(COSView *view) {
     objc_setAssociatedObject(view, COSVisitKey, nil, OBJC_ASSOCIATION_RETAIN);
 }
 
 NS_INLINE
-void COSMakeViewVisiting(UIView *view) {
+void COSMakeViewVisiting(COSView *view) {
     objc_setAssociatedObject(view, COSVisitKey, @(COSLayoutVisitStatVisiting), OBJC_ASSOCIATION_RETAIN);
 }
 
 NS_INLINE
-void COSMakeViewVisited(UIView *view) {
+void COSMakeViewVisited(COSView *view) {
     objc_setAssociatedObject(view, COSVisitKey, @(COSLayoutVisitStatVisited), OBJC_ASSOCIATION_RETAIN);
 }
 
@@ -520,12 +521,12 @@ void COSMakeViewVisited(UIView *view) {
     }
 }
 
-- (void)makeViewSetVisit:(UIView *)view {
+- (void)makeViewSetVisit:(COSView *)view {
     COSMakeViewVisiting(view);
 
     COSLayout *layout = objc_getAssociatedObject(view, COSLayoutKey);
 
-    for (UIView *adjView in [layout dependencies]) {
+    for (COSView *adjView in [layout dependencies]) {
         NSNumber *stat = objc_getAssociatedObject(adjView, COSVisitKey);
         COSLayoutVisitStat istat = stat ? [stat intValue] : COSLayoutVisitStatUnvisited;
 
@@ -543,7 +544,7 @@ void COSMakeViewVisited(UIView *view) {
 }
 
 - (void)makeViewTopo {
-    for (UIView *view in [self viewSet]) {
+    for (COSView *view in [self viewSet]) {
         NSNumber *stat = objc_getAssociatedObject(view, COSVisitKey);
         COSLayoutVisitStat istat = stat ? [stat intValue] : COSLayoutVisitStatUnvisited;
         if (istat == COSLayoutVisitStatUnvisited) {
@@ -552,12 +553,12 @@ void COSMakeViewVisited(UIView *view) {
     }
 }
 
-- (void)makeViewTopoVisit:(UIView *)view {
+- (void)makeViewTopoVisit:(COSView *)view {
     COSMakeViewVisiting(view);
 
     COSLayout *layout = objc_getAssociatedObject(view, COSLayoutKey);
 
-    for (UIView *adjView in [layout dependencies]) {
+    for (COSView *adjView in [layout dependencies]) {
         NSNumber *stat = objc_getAssociatedObject(adjView, COSVisitKey);
         COSLayoutVisitStat istat = stat ? [stat intValue] : COSLayoutVisitStatUnvisited;
 
@@ -575,11 +576,11 @@ void COSMakeViewVisited(UIView *view) {
 }
 
 - (void)cleanVisitFlag {
-    for (UIView *view in [self viewSet]) {
+    for (COSView *view in [self viewSet]) {
         COSMakeViewUnvisited(view);
     }
 
-    for (UIView *view in [self viewTopo]) {
+    for (COSView *view in [self viewTopo]) {
         COSMakeViewUnvisited(view);
     }
 }
@@ -593,7 +594,7 @@ void COSMakeViewVisited(UIView *view) {
 
 @implementation COSLayoutSolver
 
-+ (instancetype)layoutSolverOfView:(UIView *)view {
++ (instancetype)layoutSolverOfView:(COSView *)view {
     static const void *layoutSolverKey = &layoutSolverKey;
 
     COSLayoutSolver *solver = objc_getAssociatedObject(view, layoutSolverKey);
@@ -607,7 +608,7 @@ void COSMakeViewVisited(UIView *view) {
     return solver;
 }
 
-- (instancetype)initWithView:(UIView *)view {
+- (instancetype)initWithView:(COSView *)view {
     self = [super init];
 
     if (self) {
@@ -622,7 +623,7 @@ void COSMakeViewVisited(UIView *view) {
 
     NSMutableSet *layouts = [[NSMutableSet alloc] init];
 
-    for (UIView *subview in subviews) {
+    for (COSView *subview in subviews) {
         COSLayout *layout = objc_getAssociatedObject(subview, COSLayoutKey);
 
         if (layout) {
@@ -636,7 +637,7 @@ void COSMakeViewVisited(UIView *view) {
 
     [iterator iterate];
 
-    for (UIView *view in [iterator viewTopo]) {
+    for (COSView *view in [iterator viewTopo]) {
         if (view == _view) continue;
 
         COSLayout *layout = objc_getAssociatedObject(view, COSLayoutKey);
@@ -654,7 +655,7 @@ void COSMakeViewVisited(UIView *view) {
     NSInteger stackId;
 }
 
-- (instancetype)initWithView:(UIView *)view {
+- (instancetype)initWithView:(COSView *)view {
     self = [super init];
 
     if (self) {
@@ -683,13 +684,13 @@ void COSMakeViewVisited(UIView *view) {
 
 #define COSCOORD_MAKE(dependencies_, expr)         \
 ({                                                 \
-    __weak UIView *__view = _view;                 \
+    __weak COSView *__view = _view;                \
                                                    \
     COSCoord *coord = [[COSCoord alloc] init];     \
                                                    \
     coord.dependencies = (dependencies_);          \
     coord.block = ^CGFloat(COSLayoutRule *rule) {  \
-        UIView *view = __view;                     \
+        COSView *view = __view;                    \
                                                    \
         return (expr);                             \
     };                                             \
@@ -733,37 +734,47 @@ do {                                         \
 } while (0)
 
 NS_INLINE
-void cos_initialize_layout_if_needed(UIView *view) {
+void cos_initialize_layout_if_needed(COSView *view) {
     Class class = [view class];
 
     if ([swizzledLayoutClasses containsObject:class]) return;
 
+#if TARGET_OS_IPHONE
     SEL name = @selector(didMoveToSuperview);
+#elif TARGET_OS_OSX
+    SEL name = @selector(viewDidMoveToSuperview);
+#endif
 
     IMP origImp = class_getMethodImplementation(class, name);
-    IMP overImp = imp_implementationWithBlock(^(UIView *view) {
+    IMP overImp = imp_implementationWithBlock(^(COSView *view) {
         ((void(*)(id, SEL))(origImp))(view, name);
 
         COSLayout *layout = objc_getAssociatedObject(view, COSLayoutKey);
 
-        if (layout) [layout updateLayoutDriver];
+        if (layout) {
+            COSLayoutDriver *driver = [layout updateLayoutDriver];
+            [driver beginSolves];
+            [driver endSolves];
+        }
     });
 
     class_replaceMethod(class, name, overImp, "v@:");
-    
+
     [swizzledLayoutClasses addObject:class];
 }
 
 NS_INLINE
-void cos_initialize_driver_if_needed(UIView *view) {
+void cos_initialize_driver_if_needed(COSView *view) {
     Class class = [view class];
 
     if ([swizzledDriverClasses containsObject:class]) return;
 
+#if TARGET_OS_IPHONE
+
     SEL name = @selector(layoutSubviews);
 
     IMP origImp = class_getMethodImplementation(class, name);
-    IMP overImp = imp_implementationWithBlock(^(UIView *view) {
+    IMP overImp = imp_implementationWithBlock(^(COSView *view) {
         COSLayoutDriver *driver = objc_getAssociatedObject(view, COSLayoutDriverKey);
 
         if (driver) {
@@ -776,6 +787,29 @@ void cos_initialize_driver_if_needed(UIView *view) {
     });
 
     class_replaceMethod(class, name, overImp, "v@:");
+
+#elif TARGET_OS_OSX
+
+    SEL name = @selector(resizeSubviewsWithOldSize:);
+
+    IMP origImp = class_getMethodImplementation(class, name);
+    IMP overImp = imp_implementationWithBlock(^(COSView *view, NSSize oldSize) {
+        COSLayoutDriver *driver = objc_getAssociatedObject(view, COSLayoutDriverKey);
+
+        if (driver) {
+            [driver beginSolves];
+            ((void(*)(id, SEL, NSSize))(origImp))(view, name, oldSize);
+            [driver endSolves];
+        } else {
+            ((void(*)(id, SEL, NSSize))(origImp))(view, name, oldSize);
+        }
+    });
+
+    const char *types = [NSString stringWithFormat:@"v@:%s", @encode(NSSize)].UTF8String;
+
+    class_replaceMethod(class, name, overImp, types);
+
+#endif
 
     [swizzledDriverClasses addObject:class];
 }
@@ -889,8 +923,8 @@ void cos_initialize_driver_if_needed(UIView *view) {
     });
 }
 
-+ (instancetype)layoutWithView:(UIView *)view {
-    if (![view isKindOfClass:[UIView class]]) return nil;
++ (instancetype)layoutWithView:(COSView *)view {
+    if (![view isKindOfClass:[COSView class]]) return nil;
 
     COSLayout *layout = objc_getAssociatedObject(view, COSLayoutKey);
 
@@ -907,7 +941,7 @@ void cos_initialize_driver_if_needed(UIView *view) {
     return layout;
 }
 
-- (instancetype)initWithView:(UIView *)view {
+- (instancetype)initWithView:(COSView *)view {
     self = [super init];
 
     if (self) {
@@ -972,7 +1006,7 @@ void cos_initialize_driver_if_needed(UIView *view) {
 }
 
 - (void)layoutSiblingViews {
-    UIView *superview = self.view.superview;
+    COSView *superview = self.view.superview;
 
     if (superview) {
         [[objc_getAssociatedObject(superview, COSLayoutDriverKey) solver] solve];
@@ -1232,15 +1266,18 @@ void cos_initialize_driver_if_needed(UIView *view) {
     }
 }
 
-- (void)updateLayoutDriver {
-    UIView *superview = _view.superview;
+- (COSLayoutDriver *)updateLayoutDriver {
+    COSLayoutDriver *driver = nil;
+    COSView *superview = _view.superview;
 
     if (superview && !objc_getAssociatedObject(superview, COSLayoutDriverKey)) {
-        COSLayoutDriver *driver = [[COSLayoutDriver alloc] initWithView:superview];
+        driver = [[COSLayoutDriver alloc] initWithView:superview];
 
         objc_setAssociatedObject(superview, COSLayoutDriverKey, driver, OBJC_ASSOCIATION_RETAIN);
         cos_initialize_driver_if_needed(superview);
     }
+
+    return driver;
 }
 
 - (NSSet *)dependencies {
@@ -1494,7 +1531,7 @@ do {                                                     \
     percentage /= 100.0;
 
     coord.block = ^CGFloat(COSLayoutRule *rule) {
-        UIView *view = rule.view;
+        COSView *view = rule.view;
 
         COSLayoutDir dir = dir_ ? dir_ : rule.dir;
         CGFloat size = (dir == COSLayoutDirv ? COS_SUPERVIEW_HEIGHT : COS_SUPERVIEW_WIDTH);
@@ -1542,7 +1579,7 @@ do {                                                     \
 
 @interface COSCoords ()
 
-@property (nonatomic, weak) UIView *view;
+@property (nonatomic, weak) COSView *view;
 
 @property (nonatomic, strong) COSCoord *w;
 @property (nonatomic, strong) COSCoord *h;
@@ -1564,7 +1601,7 @@ do {                                                     \
 @property (nonatomic, strong) COSCoord *cb;
 @property (nonatomic, strong) COSCoord *cr;
 
-- (instancetype)initWithView:(UIView *)view;
+- (instancetype)initWithView:(COSView *)view;
 
 @end
 
@@ -1580,10 +1617,10 @@ do {                                                     \
 
 @implementation COSCoords
 
-+ (instancetype)coordsOfView:(UIView *)view {
++ (instancetype)coordsOfView:(COSView *)view {
     static const void *coordsKey = &coordsKey;
 
-    if (![view isKindOfClass:[UIView class]]) {
+    if (![view isKindOfClass:[COSView class]]) {
         return nil;
     }
 
@@ -1598,7 +1635,7 @@ do {                                                     \
     return coords;
 }
 
-- (instancetype)initWithView:(UIView *)view {
+- (instancetype)initWithView:(COSView *)view {
     self = [super init];
 
     if (self) {
@@ -1667,7 +1704,7 @@ do {                                                     \
 @end
 
 
-@implementation UIView (COSLayout)
+@implementation COSView (COSLayout)
 
 - (COSLayout *)cosLayout {
     return [COSLayout layoutWithView:self];

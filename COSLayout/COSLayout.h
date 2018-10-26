@@ -23,14 +23,28 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 // OTHER DEALINGS IN THE SOFTWARE.
 
+#import <TargetConditionals.h>
+
+#if TARGET_OS_IPHONE
+
 #import <UIKit/UIKit.h>
+
+#define COSView UIView
+
+#elif TARGET_OS_OSX
+
+#import <Cocoa/Cocoa.h>
+
+#define COSView NSView
+
+#endif
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface COSLayout : NSObject
 
-- (instancetype)initWithView:(UIView *)view;
-+ (instancetype)layoutWithView:(UIView *)view;
+- (instancetype)initWithView:(COSView *)view;
++ (instancetype)layoutWithView:(COSView *)view;
 
 - (void)addRule:(NSString *)format, ...;
 - (void)addRule:(NSString *)format args:(va_list)args;
@@ -38,7 +52,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-@interface UIView (COSLayout)
+@interface COSView (COSLayout)
 
 @property (nonatomic, strong, readonly) COSLayout *cosLayout;
 
